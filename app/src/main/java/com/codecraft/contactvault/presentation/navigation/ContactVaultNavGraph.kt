@@ -17,6 +17,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,7 +62,7 @@ import com.codecraft.contactvault.presentation.tags.TagsViewModel
 
 object ContactVaultDestinations {
     const val HOME = "home"
-    const val CONTACTS_LIST = "contacts_list"
+    const val CONTACTS_LIST = "contacts_list?favorites={favorites}"
     const val CONTACT_DETAIL = "contact_detail/{contactId}"
     const val GROUPS = "groups"
     const val TAGS = "tags"
@@ -71,6 +72,7 @@ object ContactVaultDestinations {
     const val BACKUP = "backup"
     const val RECOVERY = "recovery"
 
+    fun contactsListRoute(favorites: Boolean = false) = "contacts_list?favorites=$favorites"
     fun contactDetailRoute(contactId: Long) = "contact_detail/$contactId"
     fun duplicateComparisonRoute(contactIdA: Long, contactIdB: Long) = "duplicate_comparison/$contactIdA/$contactIdB"
 }
@@ -84,7 +86,7 @@ data class BottomNavItem(
 
 val BOTTOM_NAV_ITEMS = listOf(
     BottomNavItem(ContactVaultDestinations.HOME, "Home", Icons.Filled.Home, Icons.Outlined.Home),
-    BottomNavItem(ContactVaultDestinations.CONTACTS_LIST, "Contacts", Icons.Filled.Contacts, Icons.Outlined.Contacts),
+    BottomNavItem(ContactVaultDestinations.contactsListRoute(false), "Contacts", Icons.Filled.Contacts, Icons.Outlined.Contacts),
     BottomNavItem(ContactVaultDestinations.HEALTH, "Health", Icons.Filled.HealthAndSafety, Icons.Outlined.HealthAndSafety),
     BottomNavItem(ContactVaultDestinations.BACKUP, "Settings", Icons.Filled.Settings, Icons.Outlined.Settings)
 )
@@ -118,11 +120,11 @@ fun ContactVaultNavGraph(
         )
     } else {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
-        val currentRoute = navBackStackEntry?.destination?.route
+        val currentDestinationRoute = navBackStackEntry?.destination?.route
 
-        val showBottomBar = currentRoute in listOf(
+        val showBottomBar = currentDestinationRoute?.substringBefore("?") in listOf(
             ContactVaultDestinations.HOME,
-            ContactVaultDestinations.CONTACTS_LIST,
+            ContactVaultDestinations.CONTACTS_LIST.substringBefore("?"),
             ContactVaultDestinations.HEALTH,
             ContactVaultDestinations.BACKUP
         )
@@ -133,11 +135,11 @@ fun ContactVaultNavGraph(
                 if (showBottomBar) {
                     NavigationBar {
                         BOTTOM_NAV_ITEMS.forEach { item ->
-                            val selected = currentRoute == item.route
+                            val selected = currentDestinationRoute?.substringBefore("?") == item.route.substringBefore("?")
                             NavigationBarItem(
                                 selected = selected,
                                 onClick = {
-                                    if (currentRoute != item.route) {
+                                    if (!selected) {
                                         navController.navigate(item.route) {
                                             popUpTo(navController.graph.findStartDestination().id) {
                                                 saveState = true
@@ -163,14 +165,14 @@ fun ContactVaultNavGraph(
             NavHost(
                 navController = navController,
                 startDestination = ContactVaultDestinations.HOME,
-                modifier = Modifier.padding(innerPadding)
+                modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())
             ) {
                 composable(ContactVaultDestinations.HOME) {
                     val viewModel: HomeDashboardViewModel = viewModel()
                     HomeScreen(
                         viewModel = viewModel,
                         onNavigateToContacts = { favoritesOnly ->
-                            navController.navigate(ContactVaultDestinations.CONTACTS_LIST)
+                            navController.navigate(ContactVaultDestinations.contactsListRoute(favoritesOnly))
                         },
                         onNavigateToGroups = {
                             navController.navigate(ContactVaultDestinations.GROUPS)
@@ -187,8 +189,20 @@ fun ContactVaultNavGraph(
                     )
                 }
 
-                composable(ContactVaultDestinations.CONTACTS_LIST) {
+                composable(
+                    route = ContactVaultDestinations.CONTACTS_LIST,
+                    arguments = listOf(
+                        navArgument("favorites") {
+                            type = NavType.BoolType
+                            defaultValue = false
+                        }
+                    )
+                ) { backStackEntry ->
+                    val favoritesOnly = backStackEntry.arguments?.getBoolean("favorites") ?: false
                     val viewModel: ContactsViewModel = viewModel()
+                    LaunchedEffect(favoritesOnly) {
+                        viewModel.setFavoritesFilter(favoritesOnly)
+                    }
                     ContactsListScreen(
                         viewModel = viewModel,
                         onContactClick = { contactId ->
