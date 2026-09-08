@@ -210,7 +210,7 @@ fun BackupSettingsScreenContent(
                         ) {
                             Icon(imageVector = Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Create Backup")
+                            Text("Backup")
                         }
 
                         OutlinedButton(
@@ -219,7 +219,7 @@ fun BackupSettingsScreenContent(
                         ) {
                             Icon(imageVector = Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Restore Backup")
+                            Text("Restore")
                         }
                     }
                 }

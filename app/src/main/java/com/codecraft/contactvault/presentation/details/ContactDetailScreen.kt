@@ -288,7 +288,7 @@ fun ContactDetailScreenContent(
 
                     AssistChip(
                         onClick = { showTagDialog = true },
-                        label = { Text("+ Add Tag") },
+                        label = { Text("Add Tag") },
                         leadingIcon = {
                             Icon(imageVector = Icons.Default.Add, contentDescription = "Add Tag", modifier = Modifier.size(16.dp))
                         }

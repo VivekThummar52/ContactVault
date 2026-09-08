@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @OptIn(FlowPreview::class)
-class ContactsViewModel(
+class ContactsViewModel @JvmOverloads constructor(
     application: Application,
     private val repository: ContactsRepository = AndroidContactsRepository(application)
 ) : AndroidViewModel(application) {
