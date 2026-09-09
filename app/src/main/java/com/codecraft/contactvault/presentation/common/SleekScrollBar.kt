@@ -4,7 +4,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,16 +30,24 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.codecraft.contactvault.ui.theme.ContactVaultTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
@@ -49,17 +60,27 @@ fun SleekScrollBar(
     val totalItems = layoutInfo.totalItemsCount
     val visibleItems = layoutInfo.visibleItemsInfo.size
 
-    if (totalItems <= visibleItems || totalItems == 0) return
+    val isPreview = LocalInspectionMode.current
+    if (!isPreview && (totalItems <= visibleItems || totalItems == 0)) return
 
+    var isDragging by remember { mutableStateOf(false) }
     var isScrollActive by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
-    LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
-        isScrollActive = true
-        delay(1200)
-        isScrollActive = false
+    LaunchedEffect(listState, isDragging) {
+        snapshotFlow { listState.isScrollInProgress || isDragging }
+            .collectLatest { active ->
+                if (active) {
+                    isScrollActive = true
+                } else {
+                    isScrollActive = true
+                    delay(1200)
+                    isScrollActive = false
+                }
+            }
     }
 
-    val scrollFraction by remember(listState) {
+    val scrollFraction by remember(listState, totalItems, visibleItems) {
         derivedStateOf {
             val firstVisible = listState.firstVisibleItemIndex.toFloat()
             val maxScrollIndex = (totalItems - visibleItems).coerceAtLeast(1).toFloat()
@@ -68,21 +89,85 @@ fun SleekScrollBar(
     }
 
     AnimatedVisibility(
-        visible = listState.isScrollInProgress || isScrollActive,
+        visible = isPreview || listState.isScrollInProgress || isScrollActive || isDragging,
         enter = fadeIn(),
         exit = fadeOut(),
         modifier = modifier
     ) {
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxHeight()
                 .padding(end = 4.dp, top = 8.dp, bottom = 8.dp),
             contentAlignment = Alignment.TopEnd
         ) {
+            val density = LocalDensity.current
+            val badgeSize = 36.dp
+            val badgeSizePx = with(density) { badgeSize.toPx() }
+            val badgeOffsetPx = with(density) { 16.dp.toPx() }
+
+            val trackHeightPx = if (constraints.hasBoundedHeight && constraints.maxHeight > 0) {
+                constraints.maxHeight.toFloat()
+            } else {
+                layoutInfo.viewportSize.height.toFloat()
+            }
+
+            val thumbHeightPx = trackHeightPx * 0.15f
+            val maxThumbOffset = (trackHeightPx - thumbHeightPx).coerceAtLeast(0f)
+            val thumbTopPx = scrollFraction * maxThumbOffset
+            val thumbCenterYPx = thumbTopPx + (thumbHeightPx / 2f)
+
+            val badgeTopPx = thumbCenterYPx - (badgeSizePx / 2f)
+
+            // Remember updated state for values used inside pointerInput to prevent gesture cancellation on recomposition
+            val currentTotalItems by rememberUpdatedState(totalItems)
+            val currentVisibleItems by rememberUpdatedState(visibleItems)
+            val currentTrackHeightPx by rememberUpdatedState(trackHeightPx)
+            val currentThumbHeightPx by rememberUpdatedState(thumbHeightPx)
+
+            fun scrollToY(yPx: Float) {
+                val total = currentTotalItems
+                val visible = currentVisibleItems
+                val trackH = currentTrackHeightPx
+                val thumbH = currentThumbHeightPx
+                val maxOffset = (trackH - thumbH).coerceAtLeast(0f)
+
+                if (total <= 0) return
+                val maxScrollIndex = (total - visible).coerceAtLeast(1)
+                val fraction = if (maxOffset > 0f) {
+                    ((yPx - thumbH / 2f) / maxOffset).coerceIn(0f, 1f)
+                } else 0f
+                val targetIndex = (fraction * maxScrollIndex).roundToInt().coerceIn(0, total - 1)
+                coroutineScope.launch {
+                    listState.scrollToItem(targetIndex)
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(16.dp),
+                    .width(56.dp)
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            down.consume()
+                            isDragging = true
+                            var currentY = down.position.y
+                            scrollToY(currentY)
+
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val pointer = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!pointer.pressed) break
+                                val newY = pointer.position.y
+                                if (newY != currentY) {
+                                    currentY = newY
+                                    pointer.consume()
+                                    scrollToY(currentY)
+                                }
+                            }
+                            isDragging = false
+                        }
+                    },
                 contentAlignment = Alignment.TopEnd
             ) {
                 // Background Track
@@ -102,9 +187,7 @@ fun SleekScrollBar(
                         .width(6.dp)
                         .align(Alignment.TopEnd)
                         .offset {
-                            val availableHeight = layoutInfo.viewportSize.height * 0.8f
-                            val yOffset = (scrollFraction * availableHeight).roundToInt()
-                            IntOffset(0, yOffset)
+                            IntOffset(0, thumbTopPx.roundToInt())
                         }
                         .clip(RoundedCornerShape(3.dp))
                         .background(MaterialTheme.colorScheme.primary)
@@ -116,16 +199,17 @@ fun SleekScrollBar(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .offset {
-                                val availableHeight = layoutInfo.viewportSize.height * 0.8f
-                                val yOffset = (scrollFraction * availableHeight).roundToInt()
-                                IntOffset(-48, yOffset - 12)
+                                IntOffset(
+                                    x = -badgeOffsetPx.roundToInt(),
+                                    y = badgeTopPx.roundToInt()
+                                )
                             },
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.primary,
                         shadowElevation = 6.dp
                     ) {
                         Box(
-                            modifier = Modifier.size(36.dp),
+                            modifier = Modifier.size(badgeSize),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(

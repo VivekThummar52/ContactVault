@@ -201,7 +201,7 @@ fun ContactsListScreenContent(
                         value = uiState.searchQuery,
                         onValueChange = onSearchQueryChanged,
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search by name, phone, email, org...") },
+                        placeholder = { Text("Search by name, phone, email...") },
                         leadingIcon = {
                             Icon(imageVector = Icons.Default.Search, contentDescription = "Search")
                         },
