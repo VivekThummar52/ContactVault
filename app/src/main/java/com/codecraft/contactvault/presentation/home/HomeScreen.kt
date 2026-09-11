@@ -57,7 +57,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.codecraft.contactvault.domain.ads.AdPlacement
 import com.codecraft.contactvault.domain.model.ContactSummary
+import com.codecraft.contactvault.presentation.ads.AdaptiveBannerAd
 import com.codecraft.contactvault.presentation.common.ContactAvatar
 import com.codecraft.contactvault.ui.theme.ContactVaultTheme
 
@@ -138,6 +140,12 @@ fun HomeScreenContent(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
+            )
+        },
+        bottomBar = {
+            AdaptiveBannerAd(
+                placement = AdPlacement.HOME_BANNER,
+                modifier = Modifier.fillMaxWidth()
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }

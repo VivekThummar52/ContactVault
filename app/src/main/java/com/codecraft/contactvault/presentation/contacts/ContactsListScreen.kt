@@ -57,7 +57,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.codecraft.contactvault.domain.ads.AdPlacement
 import com.codecraft.contactvault.domain.model.ContactSummary
+import com.codecraft.contactvault.presentation.ads.AdaptiveBannerAd
 import com.codecraft.contactvault.presentation.common.ContactAvatar
 import com.codecraft.contactvault.presentation.common.SleekScrollBar
 import com.codecraft.contactvault.presentation.common.ContactsPermissionRequestCard
@@ -176,6 +178,12 @@ fun ContactsListScreenContent(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
+            )
+        },
+        bottomBar = {
+            AdaptiveBannerAd(
+                placement = AdPlacement.CONTACTS_BANNER,
+                modifier = Modifier.fillMaxWidth()
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
