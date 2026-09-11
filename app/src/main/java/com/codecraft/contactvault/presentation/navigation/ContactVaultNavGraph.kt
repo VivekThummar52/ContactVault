@@ -191,7 +191,13 @@ fun ContactVaultNavGraph(
                     HomeScreen(
                         viewModel = viewModel,
                         onNavigateToContacts = { favoritesOnly ->
-                            navController.navigate(ContactVaultDestinations.contactsListRoute(favoritesOnly))
+                            navController.navigate(ContactVaultDestinations.contactsListRoute(favoritesOnly)) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
                         },
                         onNavigateToGroups = {
                             navController.navigate(ContactVaultDestinations.GROUPS)
@@ -200,7 +206,13 @@ fun ContactVaultNavGraph(
                             navController.navigate(ContactVaultDestinations.DUPLICATES)
                         },
                         onNavigateToHealth = {
-                            navController.navigate(ContactVaultDestinations.HEALTH)
+                            navController.navigate(ContactVaultDestinations.HEALTH) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
                         },
                         onContactClick = { contactId ->
                             navController.navigate(ContactVaultDestinations.contactDetailRoute(contactId))
@@ -234,10 +246,22 @@ fun ContactVaultNavGraph(
                             navController.navigate(ContactVaultDestinations.TAGS)
                         },
                         onHealthClick = {
-                            navController.navigate(ContactVaultDestinations.HEALTH)
+                            navController.navigate(ContactVaultDestinations.HEALTH) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
                         },
                         onBackupClick = {
-                            navController.navigate(ContactVaultDestinations.BACKUP)
+                            navController.navigate(ContactVaultDestinations.BACKUP) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
                         }
                     )
                 }
