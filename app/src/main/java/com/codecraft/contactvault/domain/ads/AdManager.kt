@@ -28,6 +28,8 @@ object AdManager {
     private var lastLoadAttemptTime = 0L
     private var actionCount = 0
 
+    fun getLastInterstitialShowTime(): Long = lastInterstitialShowTime
+
     fun isNetworkAvailable(context: Context?): Boolean {
         val targetContext = context ?: appContext ?: return false
         return try {
