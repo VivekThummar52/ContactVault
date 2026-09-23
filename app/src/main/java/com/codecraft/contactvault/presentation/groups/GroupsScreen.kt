@@ -37,7 +37,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.codecraft.contactvault.domain.ads.AdPlacement
 import com.codecraft.contactvault.domain.model.ContactGroup
+import com.codecraft.contactvault.presentation.ads.AdaptiveBannerAd
 import com.codecraft.contactvault.presentation.contacts.ContactItemRow
 import com.codecraft.contactvault.ui.theme.ContactVaultTheme
 
@@ -97,6 +99,12 @@ fun GroupsScreenContent(
                         )
                     }
                 }
+            )
+        },
+        bottomBar = {
+            AdaptiveBannerAd(
+                placement = AdPlacement.GROUPS_BANNER,
+                modifier = Modifier.fillMaxWidth()
             )
         }
     ) { innerPadding ->

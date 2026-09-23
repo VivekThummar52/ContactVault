@@ -1,6 +1,11 @@
 package com.codecraft.contactvault.presentation.navigation
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.foundation.layout.padding
+import com.codecraft.contactvault.domain.ads.AdManager
+import com.codecraft.contactvault.domain.ads.AdPlacement
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.HealthAndSafety
@@ -140,12 +145,26 @@ fun ContactVaultNavGraph(
                                 selected = selected,
                                 onClick = {
                                     if (!selected) {
-                                        navController.navigate(item.route) {
-                                            popUpTo(navController.graph.findStartDestination().id) {
-                                                saveState = true
+                                        val activity = context.findActivity()
+                                        AdManager.recordAction()
+                                        if (item.route.substringBefore("?") == ContactVaultDestinations.HOME) {
+                                            AdManager.tryShowInterstitial(activity, AdPlacement.INTERSTITIAL_AFTER_BROWSING) {
+                                                navController.navigate(item.route) {
+                                                    popUpTo(navController.graph.findStartDestination().id) {
+                                                        saveState = true
+                                                    }
+                                                    launchSingleTop = true
+                                                    restoreState = true
+                                                }
                                             }
-                                            launchSingleTop = true
-                                            restoreState = true
+                                        } else {
+                                            navController.navigate(item.route) {
+                                                popUpTo(navController.graph.findStartDestination().id) {
+                                                    saveState = true
+                                                }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
                                         }
                                     }
                                 },
@@ -172,7 +191,13 @@ fun ContactVaultNavGraph(
                     HomeScreen(
                         viewModel = viewModel,
                         onNavigateToContacts = { favoritesOnly ->
-                            navController.navigate(ContactVaultDestinations.contactsListRoute(favoritesOnly))
+                            navController.navigate(ContactVaultDestinations.contactsListRoute(favoritesOnly)) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
                         },
                         onNavigateToGroups = {
                             navController.navigate(ContactVaultDestinations.GROUPS)
@@ -181,7 +206,13 @@ fun ContactVaultNavGraph(
                             navController.navigate(ContactVaultDestinations.DUPLICATES)
                         },
                         onNavigateToHealth = {
-                            navController.navigate(ContactVaultDestinations.HEALTH)
+                            navController.navigate(ContactVaultDestinations.HEALTH) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
                         },
                         onContactClick = { contactId ->
                             navController.navigate(ContactVaultDestinations.contactDetailRoute(contactId))
@@ -215,10 +246,22 @@ fun ContactVaultNavGraph(
                             navController.navigate(ContactVaultDestinations.TAGS)
                         },
                         onHealthClick = {
-                            navController.navigate(ContactVaultDestinations.HEALTH)
+                            navController.navigate(ContactVaultDestinations.HEALTH) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
                         },
                         onBackupClick = {
-                            navController.navigate(ContactVaultDestinations.BACKUP)
+                            navController.navigate(ContactVaultDestinations.BACKUP) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
                         }
                     )
                 }
@@ -340,4 +383,10 @@ fun ContactVaultNavGraph(
             }
         }
     }
+}
+
+private fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

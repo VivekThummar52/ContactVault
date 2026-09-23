@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
@@ -54,14 +53,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.codecraft.contactvault.domain.ads.AdPlacement
+import com.codecraft.contactvault.domain.ads.NativeAdManager
 import com.codecraft.contactvault.domain.model.ContactSummary
+import com.codecraft.contactvault.presentation.ads.AdaptiveBannerAd
+import com.codecraft.contactvault.presentation.ads.NativeContactAd
 import com.codecraft.contactvault.presentation.common.ContactAvatar
 import com.codecraft.contactvault.presentation.common.SleekScrollBar
 import com.codecraft.contactvault.presentation.common.ContactsPermissionRequestCard
 import com.codecraft.contactvault.ui.theme.ContactVaultTheme
+import com.google.android.gms.ads.nativead.NativeAd
 
 @Composable
 fun ContactsListScreen(
@@ -75,6 +80,12 @@ fun ContactsListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val nativeAd by NativeAdManager.nativeAdState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        NativeAdManager.loadNativeAd(context)
+    }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -86,6 +97,7 @@ fun ContactsListScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            NativeAdManager.destroy()
         }
     }
 
@@ -98,6 +110,7 @@ fun ContactsListScreen(
 
     ContactsListScreenContent(
         uiState = uiState,
+        nativeAd = nativeAd,
         onContactClick = onContactClick,
         onFavoriteToggle = { summary -> viewModel.toggleFavorite(summary) },
         onSearchQueryChanged = { query -> viewModel.onSearchQueryChanged(query) },
@@ -117,6 +130,7 @@ fun ContactsListScreen(
 @Composable
 fun ContactsListScreenContent(
     uiState: ContactsUiState,
+    nativeAd: NativeAd? = null,
     onContactClick: (Long) -> Unit,
     onFavoriteToggle: (ContactSummary) -> Unit,
     onSearchQueryChanged: (String) -> Unit,
@@ -176,6 +190,12 @@ fun ContactsListScreenContent(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
+            )
+        },
+        bottomBar = {
+            AdaptiveBannerAd(
+                placement = AdPlacement.CONTACTS_BANNER,
+                modifier = Modifier.fillMaxWidth()
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -320,6 +340,8 @@ fun ContactsListScreenContent(
                                 .fillMaxSize()
                                 .weight(1f)
                         ) {
+                            var overallContactIndex = 0
+
                             LazyColumn(
                                 state = listState,
                                 modifier = Modifier.fillMaxSize(),
@@ -341,15 +363,23 @@ fun ContactsListScreenContent(
                                         }
                                     }
 
-                                    items(
-                                        items = contactsInGroup.distinctBy { it.id },
-                                        key = { "${initial}_${it.id}" }
-                                    ) { summary ->
-                                        ContactItemRow(
-                                            summary = summary,
-                                            onContactClick = { onContactClick(summary.id) },
-                                            onFavoriteToggle = { onFavoriteToggle(summary) }
-                                        )
+                                    contactsInGroup.distinctBy { it.id }.forEach { summary ->
+                                        overallContactIndex++
+                                        val currentIndex = overallContactIndex
+
+                                        item(key = "${initial}_${summary.id}") {
+                                            ContactItemRow(
+                                                summary = summary,
+                                                onContactClick = { onContactClick(summary.id) },
+                                                onFavoriteToggle = { onFavoriteToggle(summary) }
+                                            )
+                                        }
+
+                                        if (currentIndex % 20 == 0) {
+                                            item(key = "native_ad_$currentIndex") {
+                                                NativeContactAd(nativeAd = nativeAd)
+                                            }
+                                        }
                                     }
                                 }
                             }
