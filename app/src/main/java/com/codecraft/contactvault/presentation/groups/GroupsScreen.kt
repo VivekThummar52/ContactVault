@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Group
@@ -36,8 +37,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.codecraft.contactvault.domain.ads.AdPlacement
 import com.codecraft.contactvault.domain.model.ContactGroup
-import com.codecraft.contactvault.domain.model.ContactSummary
+import com.codecraft.contactvault.presentation.ads.AdaptiveBannerAd
 import com.codecraft.contactvault.presentation.contacts.ContactItemRow
 import com.codecraft.contactvault.ui.theme.ContactVaultTheme
 
@@ -70,6 +72,9 @@ fun GroupsScreenContent(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val groupsListState = rememberLazyListState()
+    val groupContactsListState = rememberLazyListState()
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
@@ -95,6 +100,12 @@ fun GroupsScreenContent(
                     }
                 }
             )
+        },
+        bottomBar = {
+            AdaptiveBannerAd(
+                placement = AdPlacement.GROUPS_BANNER,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     ) { innerPadding ->
         Box(
@@ -117,10 +128,11 @@ fun GroupsScreenContent(
                     )
                 } else {
                     LazyColumn(
+                        state = groupContactsListState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
-                        items(items = uiState.groupContacts, key = { it.id }) { summary ->
+                        items(items = uiState.groupContacts.distinctBy { it.id }, key = { it.id }) { summary ->
                             ContactItemRow(
                                 summary = summary,
                                 onContactClick = { onContactClick(summary.id) },
@@ -142,10 +154,11 @@ fun GroupsScreenContent(
                     )
                 } else {
                     LazyColumn(
+                        state = groupsListState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(16.dp)
                     ) {
-                        items(items = uiState.groups, key = { it.id }) { group ->
+                        items(items = uiState.groups.distinctBy { it.id }, key = { it.id }) { group ->
                             GroupCardRow(
                                 group = group,
                                 onClick = { onSelectGroup(group) }

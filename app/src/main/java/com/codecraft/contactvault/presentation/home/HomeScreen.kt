@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,7 +54,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.codecraft.contactvault.domain.ads.AdPlacement
 import com.codecraft.contactvault.domain.model.ContactSummary
+import com.codecraft.contactvault.presentation.ads.AdaptiveBannerAd
 import com.codecraft.contactvault.presentation.common.ContactAvatar
 import com.codecraft.contactvault.ui.theme.ContactVaultTheme
 
@@ -69,6 +75,19 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.loadDashboardData()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let { err ->
@@ -100,8 +119,8 @@ fun HomeScreenContent(
     onNavigateToDuplicates: () -> Unit,
     onNavigateToHealth: () -> Unit,
     onContactClick: (Long) -> Unit,
-    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -121,6 +140,12 @@ fun HomeScreenContent(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
+            )
+        },
+        bottomBar = {
+            AdaptiveBannerAd(
+                placement = AdPlacement.HOME_BANNER,
+                modifier = Modifier.fillMaxWidth()
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -297,8 +322,8 @@ fun DashboardMetricCard(
     label: String,
     count: Int,
     onClick: () -> Unit,
-    highlight: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    highlight: Boolean = false
 ) {
     Card(
         onClick = onClick,

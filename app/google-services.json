@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "148614253744",
+    "project_id": "contactvault-342f8",
+    "storage_bucket": "contactvault-342f8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:148614253744:android:7303b3ad87f3bea75bff75",
+        "android_client_info": {
+          "package_name": "com.codecraft.contactvault"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFK3wvdgMOvqWrlI5fDw_jDZyAGBZK_WE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

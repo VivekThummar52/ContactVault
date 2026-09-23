@@ -21,7 +21,7 @@ data class GroupsUiState(
     val error: String? = null
 )
 
-class GroupsViewModel(
+class GroupsViewModel @JvmOverloads constructor(
     application: Application,
     private val groupsRepository: GroupsRepository = AndroidGroupsRepository(application)
 ) : AndroidViewModel(application) {

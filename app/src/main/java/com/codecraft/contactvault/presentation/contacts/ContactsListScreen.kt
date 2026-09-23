@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
@@ -42,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -52,10 +52,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.codecraft.contactvault.domain.ads.AdPlacement
+import com.codecraft.contactvault.domain.ads.NativeAdManager
 import com.codecraft.contactvault.domain.model.ContactSummary
+import com.codecraft.contactvault.presentation.ads.AdaptiveBannerAd
+import com.codecraft.contactvault.presentation.ads.NativeContactAd
 import com.codecraft.contactvault.presentation.common.ContactAvatar
+import com.codecraft.contactvault.presentation.common.SleekScrollBar
 import com.codecraft.contactvault.presentation.common.ContactsPermissionRequestCard
 import com.codecraft.contactvault.ui.theme.ContactVaultTheme
+import com.google.android.gms.ads.nativead.NativeAd
 
 @Composable
 fun ContactsListScreen(
@@ -69,6 +80,26 @@ fun ContactsListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val nativeAd by NativeAdManager.nativeAdState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        NativeAdManager.loadNativeAd(context)
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.checkPermissionAndLoad()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            NativeAdManager.destroy()
+        }
+    }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let { err ->
@@ -79,6 +110,7 @@ fun ContactsListScreen(
 
     ContactsListScreenContent(
         uiState = uiState,
+        nativeAd = nativeAd,
         onContactClick = onContactClick,
         onFavoriteToggle = { summary -> viewModel.toggleFavorite(summary) },
         onSearchQueryChanged = { query -> viewModel.onSearchQueryChanged(query) },
@@ -98,6 +130,7 @@ fun ContactsListScreen(
 @Composable
 fun ContactsListScreenContent(
     uiState: ContactsUiState,
+    nativeAd: NativeAd? = null,
     onContactClick: (Long) -> Unit,
     onFavoriteToggle: (ContactSummary) -> Unit,
     onSearchQueryChanged: (String) -> Unit,
@@ -159,6 +192,12 @@ fun ContactsListScreenContent(
                 )
             )
         },
+        bottomBar = {
+            AdaptiveBannerAd(
+                placement = AdPlacement.CONTACTS_BANNER,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(
@@ -182,7 +221,7 @@ fun ContactsListScreenContent(
                         value = uiState.searchQuery,
                         onValueChange = onSearchQueryChanged,
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search by name, phone, email, org...") },
+                        placeholder = { Text("Search by name, phone, email...") },
                         leadingIcon = {
                             Icon(imageVector = Icons.Default.Search, contentDescription = "Search")
                         },
@@ -246,7 +285,11 @@ fun ContactsListScreenContent(
                         uiState.contacts
                     }
 
-                    if (displayedContacts.isEmpty()) {
+                    val sortedContacts = displayedContacts.sortedBy { contact ->
+                        contact.displayName.trim().lowercase()
+                    }
+
+                    if (sortedContacts.isEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -268,44 +311,84 @@ fun ContactsListScreenContent(
                             }
                         }
                     } else {
-                        // Group by initial letter
-                        val grouped = displayedContacts.groupBy { contact ->
-                            contact.displayName.trim().firstOrNull()?.uppercaseChar() ?: '#'
+                        // Group by initial letter and sort initial keys strictly alphabetically ('A'..'Z', '#')
+                        val grouped: Map<Char, List<ContactSummary>> = sortedContacts.groupBy { contact ->
+                            val char = contact.displayName.trim().firstOrNull()?.uppercaseChar() ?: '#'
+                            if (char in 'A'..'Z') char else '#'
+                        }.toSortedMap(comparator = compareBy { key ->
+                            if (key == '#') 'Z' + 1 else key
+                        })
+
+                        val listState = rememberLazyListState()
+
+                        val currentSectionLetter = remember(listState.firstVisibleItemIndex, grouped) {
+                            var runningCount = 0
+                            var foundLetter = ""
+                            for ((initial, list) in grouped) {
+                                val sectionItemCount = list.size + 1
+                                if (listState.firstVisibleItemIndex < runningCount + sectionItemCount) {
+                                    foundLetter = initial.toString()
+                                    break
+                                }
+                                runningCount += sectionItemCount
+                            }
+                            foundLetter
                         }
 
-                        LazyColumn(
+                        Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .weight(1f),
-                            contentPadding = PaddingValues(bottom = 16.dp)
+                                .weight(1f)
                         ) {
-                            grouped.forEach { (initial, contactsInGroup) ->
-                                stickyHeader {
-                                    Surface(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        color = MaterialTheme.colorScheme.surfaceVariant
-                                    ) {
-                                        Text(
-                                            text = initial.toString(),
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                                        )
+                            var overallContactIndex = 0
+
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(bottom = 16.dp)
+                            ) {
+                                grouped.forEach { (initial, contactsInGroup) ->
+                                    stickyHeader {
+                                        Surface(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            color = MaterialTheme.colorScheme.surfaceVariant
+                                        ) {
+                                            Text(
+                                                text = initial.toString(),
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+
+                                    contactsInGroup.distinctBy { it.id }.forEach { summary ->
+                                        overallContactIndex++
+                                        val currentIndex = overallContactIndex
+
+                                        item(key = "${initial}_${summary.id}") {
+                                            ContactItemRow(
+                                                summary = summary,
+                                                onContactClick = { onContactClick(summary.id) },
+                                                onFavoriteToggle = { onFavoriteToggle(summary) }
+                                            )
+                                        }
+
+                                        if (currentIndex % 20 == 0) {
+                                            item(key = "native_ad_$currentIndex") {
+                                                NativeContactAd(nativeAd = nativeAd)
+                                            }
+                                        }
                                     }
                                 }
-
-                                items(
-                                    items = contactsInGroup,
-                                    key = { it.id }
-                                ) { summary ->
-                                    ContactItemRow(
-                                        summary = summary,
-                                        onContactClick = { onContactClick(summary.id) },
-                                        onFavoriteToggle = { onFavoriteToggle(summary) }
-                                    )
-                                }
                             }
+
+                            SleekScrollBar(
+                                listState = listState,
+                                sectionLetter = currentSectionLetter,
+                                modifier = Modifier.align(Alignment.CenterEnd)
+                            )
                         }
                     }
                 }

@@ -57,7 +57,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.codecraft.contactvault.domain.ads.AdPlacement
 import com.codecraft.contactvault.domain.model.Tag
+import com.codecraft.contactvault.presentation.ads.AdaptiveBannerAd
 import com.codecraft.contactvault.ui.theme.ContactVaultTheme
 
 val PREDEFINED_TAG_COLORS = listOf(
@@ -126,6 +128,12 @@ fun TagsScreenContent(
             FloatingActionButton(onClick = { showCreateDialog = true }) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = "Create Tag")
             }
+        },
+        bottomBar = {
+            AdaptiveBannerAd(
+                placement = AdPlacement.TAGS_BANNER,
+                modifier = Modifier.fillMaxWidth()
+            )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->

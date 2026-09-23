@@ -91,7 +91,7 @@ class DetectDuplicatesUseCase(
                                 id = pairKey,
                                 contactA = c1,
                                 contactB = c2,
-                                matchReason = "Same Phone Number (${c1.primaryPhone})",
+                                matchReason = "Phone Number (${c1.primaryPhone})",
                                 confidenceScore = 95,
                                 isConfirmed = true
                             )
