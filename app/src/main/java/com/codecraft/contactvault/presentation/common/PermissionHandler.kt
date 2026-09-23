@@ -31,7 +31,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,7 +42,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -52,9 +50,13 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.codecraft.contactvault.ui.theme.ContactVaultTheme
 
 object PermissionUtils {
+    private const val PREFS_NAME = "contact_vault_permissions"
+    private const val KEY_REQUESTED = "requested_contacts_permission"
+
     val CONTACT_PERMISSIONS = arrayOf(
         Manifest.permission.READ_CONTACTS,
         Manifest.permission.WRITE_CONTACTS
@@ -64,6 +66,16 @@ object PermissionUtils {
         return CONTACT_PERMISSIONS.all { permission ->
             ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
         }
+    }
+
+    fun hasRequestedPermissionBefore(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_REQUESTED, false)
+    }
+
+    fun setRequestedPermissionBefore(context: Context, value: Boolean = true) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_REQUESTED, value).apply()
     }
 
     fun openAppSettings(context: Context) {
@@ -80,6 +92,13 @@ object PermissionUtils {
             ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
         }
     }
+
+    fun isPermanentlyDenied(context: Context): Boolean {
+        if (hasContactsPermission(context)) return false
+        val requestedBefore = hasRequestedPermissionBefore(context)
+        val shouldShowRat = shouldShowRationale(context)
+        return requestedBefore && !shouldShowRat
+    }
 }
 
 @Composable
@@ -90,7 +109,9 @@ fun ContactsPermissionScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    var hasRequestedPermission by remember { mutableStateOf(false) }
+    var isPermanentlyDenied by remember {
+        mutableStateOf(PermissionUtils.isPermanentlyDenied(context))
+    }
 
     // Re-check permission automatically when app resumes (e.g. returning from System Settings)
     DisposableEffect(lifecycleOwner) {
@@ -98,6 +119,8 @@ fun ContactsPermissionScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 if (PermissionUtils.hasContactsPermission(context)) {
                     onPermissionGranted()
+                } else {
+                    isPermanentlyDenied = PermissionUtils.isPermanentlyDenied(context)
                 }
             }
         }
@@ -110,15 +133,13 @@ fun ContactsPermissionScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
-        hasRequestedPermission = true
+        PermissionUtils.setRequestedPermissionBefore(context, true)
         if (PermissionUtils.hasContactsPermission(context)) {
             onPermissionGranted()
+        } else {
+            isPermanentlyDenied = PermissionUtils.isPermanentlyDenied(context)
         }
     }
-
-    val isPermanentlyDenied = hasRequestedPermission &&
-            !PermissionUtils.hasContactsPermission(context) &&
-            !PermissionUtils.shouldShowRationale(context)
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -154,7 +175,7 @@ fun ContactsPermissionScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = if (isPermanentlyDenied) {
-                        "ContactVault needs access to your contacts to display, organize, health-check, and back up your address book. Permission was denied. Please grant Contacts access in your system settings."
+                        "Contacts permission was permanently denied or disabled. ContactVault requires Contacts access to function. Please tap 'Open App Settings' below to enable Contacts access in System Settings."
                     } else {
                         "ContactVault is a privacy-first, offline contacts manager. To display, organize, search, and back up your address book, ContactVault requires permission to access your contacts."
                     },
@@ -197,6 +218,7 @@ fun ContactsPermissionScreen(
                         if (isPermanentlyDenied) {
                             PermissionUtils.openAppSettings(context)
                         } else {
+                            PermissionUtils.setRequestedPermissionBefore(context, true)
                             permissionLauncher.launch(PermissionUtils.CONTACT_PERMISSIONS)
                         }
                     },
@@ -214,20 +236,6 @@ fun ContactsPermissionScreen(
                         style = MaterialTheme.typography.titleMedium
                     )
                 }
-
-                if (isPermanentlyDenied) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedButton(
-                        onClick = {
-                            permissionLauncher.launch(PermissionUtils.CONTACT_PERMISSIONS)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp)
-                    ) {
-                        Text(text = "Try Direct Request Again")
-                    }
-                }
             }
         }
     }
@@ -239,18 +247,20 @@ fun ContactsPermissionRequestCard(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var hasRequestedPermission by remember { mutableStateOf(false) }
+    var isPermanentlyDenied by remember {
+        mutableStateOf(PermissionUtils.isPermanentlyDenied(context))
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
-        hasRequestedPermission = true
-        onRequestPermission()
+        PermissionUtils.setRequestedPermissionBefore(context, true)
+        if (PermissionUtils.hasContactsPermission(context)) {
+            onRequestPermission()
+        } else {
+            isPermanentlyDenied = PermissionUtils.isPermanentlyDenied(context)
+        }
     }
-
-    val isPermanentlyDenied = hasRequestedPermission &&
-            !PermissionUtils.hasContactsPermission(context) &&
-            !PermissionUtils.shouldShowRationale(context)
 
     Card(
         modifier = modifier
@@ -282,7 +292,7 @@ fun ContactsPermissionRequestCard(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = if (isPermanentlyDenied) {
-                    "Contacts permission was denied. Please enable Contacts permission in System Settings to view and manage your contacts."
+                    "Contacts permission was permanently denied. Please enable Contacts permission in System Settings."
                 } else {
                     "ContactVault is an offline contacts manager. Grant contacts permission so you can view, search, and manage your contacts safely on device."
                 },
@@ -291,28 +301,22 @@ fun ContactsPermissionRequestCard(
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(20.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (isPermanentlyDenied) {
-                    Button(
-                        onClick = {
-                            PermissionUtils.openAppSettings(context)
-                        }
-                    ) {
-                        Icon(imageVector = Icons.Default.Settings, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Open Settings")
-                    }
-                } else {
-                    Button(
-                        onClick = {
-                            permissionLauncher.launch(PermissionUtils.CONTACT_PERMISSIONS)
-                        }
-                    ) {
-                        Text(text = "Grant Permission")
+            Button(
+                onClick = {
+                    if (isPermanentlyDenied) {
+                        PermissionUtils.openAppSettings(context)
+                    } else {
+                        PermissionUtils.setRequestedPermissionBefore(context, true)
+                        permissionLauncher.launch(PermissionUtils.CONTACT_PERMISSIONS)
                     }
                 }
+            ) {
+                Icon(
+                    imageVector = if (isPermanentlyDenied) Icons.Default.Settings else Icons.Default.Contacts,
+                    contentDescription = null
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = if (isPermanentlyDenied) "Open App Settings" else "Grant Permission")
             }
         }
     }
